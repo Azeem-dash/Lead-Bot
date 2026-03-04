@@ -57,14 +57,13 @@ export async function POST(request: NextRequest) {
 
         const run = await apifyClient.actor(START_SCRAPE_ACTOR).start(
             {
-                queries: [`${keyword} in ${location}`],
-                maxPlacesPerQuery: limit,
+                searchStringsArray: [`${keyword} in ${location}`],
+                maxCrawledPlacesPerSearch: limit,
                 language: 'en',
                 region: 'us', // Adjust as needed
                 exportPlaceUrls: true,
                 scrapeReviews: false,
                 scrapeWebsite: true,
-                scrapeEmails: true,
             },
             {
                 webhooks: [

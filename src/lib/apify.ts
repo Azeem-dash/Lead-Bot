@@ -8,7 +8,7 @@ export const apifyClient = new ApifyClient({
     token: process.env.APIFY_API_TOKEN,
 });
 
-export const START_SCRAPE_ACTOR = 'compass/google-maps-scraper';
+export const START_SCRAPE_ACTOR = 'compass/crawler-google-places';
 
 export interface ScrapeInput {
     queries: string[];
