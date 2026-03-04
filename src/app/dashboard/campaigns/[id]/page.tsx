@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/utils/supabase/client";
-import { ArrowLeft, Globe, Mail, Phone, ShieldCheck } from "lucide-react";
+import { ArrowLeft, ExternalLink, Globe, Loader2, Mail, Phone, ShieldCheck, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -15,6 +15,7 @@ interface Lead {
     rating: number | null;
     lead_score: string;
     status: string;
+    generated_html?: string;
 }
 
 interface Campaign {
@@ -30,36 +31,72 @@ export default function CampaignDetails() {
     const [campaign, setCampaign] = useState<Campaign | null>(null);
     const [leads, setLeads] = useState<Lead[]>([]);
     const [loading, setLoading] = useState(true);
+    const [generatingId, setGeneratingId] = useState<string | null>(null);
+
+    const fetchData = async () => {
+        const supabase = createClient();
+
+        // Fetch Campaign
+        const { data: campaignData } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('id', id)
+            .single();
+
+        if (campaignData) setCampaign(campaignData);
+
+        // Fetch Leads
+        const { data: leadsData } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('campaign_id', id)
+            .order('created_at', { ascending: false });
+
+        if (leadsData) setLeads(leadsData);
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            const supabase = createClient();
-
-            // Fetch Campaign
-            const { data: campaignData } = await supabase
-                .from('campaigns')
-                .select('*')
-                .eq('id', id)
-                .single();
-
-            if (campaignData) setCampaign(campaignData);
-
-            // Fetch Leads
-            const { data: leadsData } = await supabase
-                .from('leads')
-                .select('*')
-                .eq('campaign_id', id)
-                .order('created_at', { ascending: false });
-
-            if (leadsData) setLeads(leadsData);
-            setLoading(false);
-        };
-
         fetchData();
     }, [id]);
 
-    if (loading) return <div className="p-8 text-gray-500">Loading campaign results...</div>;
-    if (!campaign) return <div className="p-8 text-red-500">Campaign not found.</div>;
+    const handleGenerateDemo = async (leadId: string) => {
+        setGeneratingId(leadId);
+        try {
+            const res = await fetch('/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ leadId }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.error || 'Failed to generate demo');
+            }
+
+            // Refresh leads list
+            await fetchData();
+            alert('🎉 Custom website demo generated successfully!');
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setGeneratingId(null);
+        }
+    };
+
+    if (loading) return (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 className="w-8 h-8 text-[#7C3AED] animate-spin" />
+            <p className="text-gray-500 text-sm">Loading campaign results...</p>
+        </div>
+    );
+
+    if (!campaign) return (
+        <div className="p-8 text-center">
+            <p className="text-red-500 font-bold">Campaign not found.</p>
+            <Link href="/dashboard/campaigns" className="text-[#7C3AED] text-sm hover:underline mt-4 inline-block italic">Back to campaigns</Link>
+        </div>
+    );
 
     return (
         <div className="space-y-6 pb-20">
@@ -97,9 +134,9 @@ export default function CampaignDetails() {
                     <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">Hot Leads</div>
                     <div className="text-3xl font-bold">{leads.filter(l => l.lead_score === 'HOT').length}</div>
                 </div>
-                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-blue-400">
+                <div className="p-6 rounded-2xl bg-white/5 border border-white/10 text-blue-400" title="Websites generated with Gemini">
                     <div className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">AI Demos</div>
-                    <div className="text-3xl font-bold">0</div>
+                    <div className="text-3xl font-bold">{leads.filter(l => l.generated_html).length}</div>
                 </div>
             </div>
 
@@ -122,7 +159,7 @@ export default function CampaignDetails() {
                                     {campaign.status === "running" ? "Scraping in progress... leads will appear here soon." : "No leads found for this campaign."}
                                 </td>
                             </tr>
-                        ) : leads.map((lead) => (
+                        ) : leads.map((lead: any) => (
                             <tr key={lead.id} className="hover:bg-white/5 transition-colors group">
                                 <td className="px-6 py-4">
                                     <div>
@@ -163,9 +200,31 @@ export default function CampaignDetails() {
                                     </span>
                                 </td>
                                 <td className="px-6 py-4 text-right">
-                                    <button className="px-3 py-1.5 bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 rounded-lg text-[10px] font-bold uppercase hover:bg-[#7C3AED] hover:text-white transition-all">
-                                        Generate AI Demo
-                                    </button>
+                                    {lead.generated_html ? (
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Link
+                                                href={`/preview/${lead.id}`}
+                                                target="_blank"
+                                                className="px-3 py-1.5 bg-green-500/10 text-green-400 border border-green-500/20 rounded-lg text-[10px] font-bold uppercase hover:bg-green-500 hover:text-white transition-all flex items-center gap-1.5"
+                                            >
+                                                View Preview
+                                                <ExternalLink className="w-3 h-3" />
+                                            </Link>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            onClick={() => handleGenerateDemo(lead.id)}
+                                            disabled={generatingId === lead.id}
+                                            className="px-3 py-1.5 bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 rounded-lg text-[10px] font-bold uppercase hover:bg-[#7C3AED] hover:text-white transition-all flex items-center gap-2"
+                                        >
+                                            {generatingId === lead.id ? (
+                                                <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                                <Sparkles className="w-3 h-3" />
+                                            )}
+                                            {generatingId === lead.id ? "Generating..." : "Generate AI Demo"}
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))}
