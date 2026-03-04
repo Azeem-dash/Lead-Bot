@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const sidebarLinks = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -28,6 +29,41 @@ export default function DashboardLayout({
 }) {
     const pathname = usePathname();
     const router = useRouter();
+    const [credits, setCredits] = useState<number | null>(null);
+
+    useEffect(() => {
+        const fetchUserCredits = async () => {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+
+            if (user) {
+                const { data } = await supabase
+                    .from('users')
+                    .select('credits_balance')
+                    .eq('id', user.id)
+                    .single();
+
+                if (data) {
+                    setCredits(data.credits_balance);
+                }
+            }
+        };
+
+        fetchUserCredits();
+
+        // Optional: listen for credit changes (e.g. from webhook)
+        const supabase = createClient();
+        const channel = supabase
+            .channel('user-credits')
+            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'users' }, (payload) => {
+                setCredits(payload.new.credits_balance);
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, []);
 
     const handleSignOut = async () => {
         const supabase = createClient();
@@ -41,7 +77,7 @@ export default function DashboardLayout({
             <aside className="w-64 border-r border-white/5 bg-[#0F172A] hidden md:flex flex-col">
                 <div className="h-16 flex items-center gap-2 px-6 border-b border-white/5">
                     <Bot className="w-6 h-6 text-[#7C3AED]" />
-                    <span className="font-bold text-lg">myleadbots</span>
+                    <span className="font-bold text-lg">mylead<span className="text-[#7C3AED]">bots</span></span>
                 </div>
 
                 <nav className="flex-1 p-4 space-y-1">
@@ -59,6 +95,9 @@ export default function DashboardLayout({
                             >
                                 <Icon className="w-4 h-4" />
                                 {link.name}
+                                {link.name === "Create New" && (
+                                    <span className="ml-auto flex h-2 w-2 rounded-full bg-[#F97316] animate-pulse" />
+                                )}
                             </Link>
                         );
                     })}
@@ -82,10 +121,12 @@ export default function DashboardLayout({
                         {sidebarLinks.find(l => l.href === pathname)?.name || "Dashboard"}
                     </h2>
                     <div className="flex items-center gap-4">
-                        <div className="px-3 py-1 bg-[#7C3AED]/20 border border-[#7C3AED]/30 rounded-full">
-                            <span className="text-xs font-bold text-[#7C3AED]">500 CREDITS</span>
+                        <div className="px-3 py-1 bg-[#7C3AED]/20 border border-[#7C3AED]/30 rounded-full flex items-center gap-2">
+                            <span className="text-xs font-black text-[#7C3AED] uppercase tracking-tighter">
+                                {credits !== null ? `${credits} CREDITS` : "LOADING..."}
+                            </span>
                         </div>
-                        <div className="w-8 h-8 rounded-full bg-white/10 border border-white/10" />
+                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#7C3AED] to-[#F97316]" />
                     </div>
                 </header>
 
