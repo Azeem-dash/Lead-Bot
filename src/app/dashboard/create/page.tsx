@@ -30,8 +30,8 @@ export default function CreateCampaign() {
                 throw new Error(data.error || 'Failed to start campaign');
             }
 
-            // Redirect to campaigns page
-            router.push('/dashboard/campaigns?started=true');
+            // Redirect directly to the new campaign
+            router.push(`/dashboard/campaigns/${data.campaignId}`);
         } catch (err: any) {
             setError(err.message);
         } finally {
