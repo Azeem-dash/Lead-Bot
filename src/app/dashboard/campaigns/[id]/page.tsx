@@ -33,6 +33,8 @@ export default function CampaignDetails() {
     const [loading, setLoading] = useState(true);
     const [generatingId, setGeneratingId] = useState<string | null>(null);
 
+    const [syncing, setSyncing] = useState(false);
+
     const fetchData = async () => {
         const supabase = createClient();
 
@@ -54,6 +56,31 @@ export default function CampaignDetails() {
 
         if (leadsData) setLeads(leadsData);
         setLoading(false);
+    };
+
+    const handleSync = async () => {
+        setSyncing(true);
+        try {
+            const res = await fetch('/api/scrape/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ campaignId: id }),
+            });
+
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || 'Sync failed');
+
+            if (data.success) {
+                alert(`✅ ${data.message}`);
+                await fetchData();
+            } else {
+                alert(`ℹ️ ${data.message}`);
+            }
+        } catch (err: any) {
+            alert(`Error: ${err.message}`);
+        } finally {
+            setSyncing(false);
+        }
     };
 
     useEffect(() => {
@@ -115,6 +142,18 @@ export default function CampaignDetails() {
                         }`}>
                         {campaign.status}
                     </span>
+
+                    {campaign.status === "running" && (
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            className="px-4 py-2 bg-[#7C3AED]/10 text-[#7C3AED] border border-[#7C3AED]/20 rounded-xl text-xs font-bold hover:bg-[#7C3AED] hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {syncing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                            {syncing ? 'Syncing...' : 'Sync Results'}
+                        </button>
+                    )}
+
                     <button className="px-4 py-2 bg-white text-black rounded-xl text-xs font-bold hover:bg-gray-200 transition-all">
                         Export CSV
                     </button>

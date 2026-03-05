@@ -82,6 +82,15 @@ export async function POST(request: NextRequest) {
             }
         );
 
+        // 4. Store the Run and Dataset IDs for polling/manual sync
+        await supabase
+            .from('campaigns')
+            .update({
+                apify_run_id: run.id,
+                apify_dataset_id: run.defaultDatasetId
+            })
+            .eq('id', campaign.id);
+
         return NextResponse.json({
             message: 'Scrape started successfully',
             campaignId: campaign.id,
